@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentación del Proyecto
+    url: https://github.com/Melissa1221/pc3-entornos-efimeros-grupo12/blob/main/README.md
+    about: Lee la documentación antes de crear un issue
+  - name: Scrum Board
+    url: https://github.com/users/Melissa1221/projects/4
+    about: Revisa el estado actual del proyecto en GitHub Projects
