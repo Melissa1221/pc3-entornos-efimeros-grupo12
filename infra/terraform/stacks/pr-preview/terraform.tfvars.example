@@ -1,0 +1,5 @@
+# Ejemplo de configuración para stack de PR preview
+# Copia este archivo a terraform.tfvars y ajusta los valores
+
+# Número de Pull Request (requerido)
+pr_number = 123
