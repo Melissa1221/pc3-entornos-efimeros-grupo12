@@ -74,12 +74,16 @@ infra/terraform/
 ### Módulo ephemeral-app
 
 Variables:
-- pr_number (obligatoria)
-- app_port
-- app_image
+- pr_number (obligatoria, validación > 0)
+- app_port (default: 8000)
 
-Recursos: Por definir
-Outputs: URL, estado, metadata
+Recursos: Docker container con nginx:alpine
+Outputs: app_url, container_name, port
+
+**Decisión de naming único:**
+- Container: `ephemeral-pr-{pr_number}-app`
+- Puerto dinámico: `app_port + (pr_number % 100)`
+- Razón: Evita colisiones entre PRs concurrentes
 
 ### Módulo ephemeral-proxy
 
@@ -103,10 +107,15 @@ Outputs: URL, estado, metadata
 
 ### Stack pr-preview
 
-Composición de los tres módulos
-Variable obligatoria: pr_number
-Cálculo de puertos basado en PR number
-Output consolidado con todas las URLs
+Composición: Actualmente módulo ephemeral-app
+Variable obligatoria: pr_number (validación > 0)
+Local: stack_name = "ephemeral-pr-${var.pr_number}"
+Ejemplo: terraform.tfvars.example incluido
+
+Decisión de arquitectura:
+- Stack como orquestador de módulos
+- Naming consistente usando locals
+- Validación centralizada en stack level
 
 ## Validación de IaC
 
