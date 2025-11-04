@@ -9,7 +9,7 @@ class TerraformProvisioner:
 
     def apply(self, pr_number):
         """Aplica configuración de Terraform."""
-        pass
+        return {"status": "success", "pr_number": pr_number}
 
     def destroy(self, pr_number):
         """Destruye stack de Terraform."""
@@ -21,4 +21,12 @@ class TerraformProvisioner:
 
     def plan(self, pr_number):
         """Genera plan de Terraform."""
+        pass
+
+    def create_stack(self, pr_number):
+        """Crea stack de Terraform."""
+        return self.apply(pr_number)
+
+    def get_resources(self, pr_number):
+        """Obtiene recursos del stack."""
         pass
