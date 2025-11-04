@@ -56,7 +56,7 @@ jobs:
 
       - name: Run tests with coverage
         run: |
-          PYTHONPATH=. pytest --cov=src --cov-fail-under=90 --cov-report=xml --cov-report=term
+          PYTHONPATH=. pytest --cov --cov-fail-under=90 --cov-report=xml --cov-report=term
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3

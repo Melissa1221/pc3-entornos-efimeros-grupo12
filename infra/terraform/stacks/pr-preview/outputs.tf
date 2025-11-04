@@ -74,9 +74,9 @@ output "stack_containers" {
 output "resource_count" {
   description = "Número total de recursos creados"
   value = {
-    containers = 3  # app + proxy + db
-    volumes    = 1  # db volume
-    networks   = 1  # ephemeral network
+    containers = 3 # app + proxy + db
+    volumes    = 1 # db volume
+    networks   = 1 # ephemeral network
     total      = 5
   }
 }

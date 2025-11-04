@@ -29,4 +29,12 @@ class TerraformProvisioner:
 
     def get_resources(self, pr_number):
         """Obtiene recursos del stack."""
-        pass
+        return []
+
+    def destroy_stack(self, pr_number):
+        """Destruye stack específico."""
+        return self.destroy(pr_number)
+
+    def stack_exists(self, pr_number):
+        """Verifica si stack existe."""
+        return False
