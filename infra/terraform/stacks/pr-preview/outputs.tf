@@ -69,3 +69,45 @@ output "stack_containers" {
     module.db.db_name
   ]
 }
+
+# Métricas y monitoreo
+output "resource_count" {
+  description = "Número total de recursos creados"
+  value = {
+    containers = 3  # app + proxy + db
+    volumes    = 1  # db volume
+    networks   = 1  # ephemeral network
+    total      = 5
+  }
+}
+
+output "health_endpoints" {
+  description = "Endpoints para verificar salud del entorno"
+  value = {
+    proxy_health = "${module.proxy.proxy_url}/health"
+    app_health   = "${module.app.app_url}/health"
+    app_ready    = "${module.app.app_url}/ready"
+  }
+}
+
+output "metrics_labels" {
+  description = "Labels para sistema de métricas"
+  value = {
+    environment   = "ephemeral"
+    pr_number     = var.pr_number
+    stack_name    = local.stack_name
+    creation_time = timestamp()
+  }
+}
+
+output "drift_check_info" {
+  description = "Información para verificación de drift"
+  value = {
+    terraform_version = "1.5.0"
+    provider_versions = {
+      docker = "~> 3.0"
+    }
+    state_file = "terraform.tfstate"
+    last_apply = timestamp()
+  }
+}

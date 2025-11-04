@@ -1,0 +1,261 @@
+name: IaC Metrics Collection
+
+on:
+  workflow_run:
+    workflows: ["PR Environment Deploy/Destroy"]
+    types: [completed]
+  
+  schedule:
+    - cron: '0 */6 * * *'
+  
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to check drift'
+        required: false
+        type: string
+      operation:
+        description: 'Metrics operation to perform'
+        required: true
+        default: 'drift-check'
+        type: choice
+        options:
+        - drift-check
+        - generate-report
+        - full-analysis
+
+env:
+  TF_IN_AUTOMATION: true
+  TF_INPUT: false
+
+jobs:
+  drift-monitoring:
+    name: Monitor Infrastructure Drift
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event.inputs.operation == 'drift-check'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.5.0
+          terraform_wrapper: false
+      
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq bc
+      
+      - name: Setup Docker
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Find active stacks
+        id: find_stacks
+        run: |
+          echo "Finding active ephemeral stacks..."
+          
+          active_prs=""
+          
+          for container in $(docker ps --filter "label=environment=ephemeral" --format "{{.Names}}" 2>/dev/null || true); do
+            if [[ $container =~ ephemeral-pr-([0-9]+)- ]]; then
+              pr_num="${BASH_REMATCH[1]}"
+              if [[ ! " $active_prs " =~ " $pr_num " ]]; then
+                active_prs="$active_prs $pr_num"
+              fi
+            fi
+          done
+          
+          echo "active_prs=${active_prs}" >> $GITHUB_OUTPUT
+          echo "Active PRs found: $active_prs"
+      
+      - name: Check drift for active stacks
+        run: |
+          active_prs="${{ steps.find_stacks.outputs.active_prs }}"
+          
+          if [ -n "$active_prs" ]; then
+            for pr_num in $active_prs; do
+              echo "Checking drift for PR #$pr_num"
+              ./scripts/metrics-collector.sh drift-check $pr_num || true
+            done
+          else
+            echo "No active stacks found for drift monitoring"
+          fi
+      
+      - name: Check manual drift
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.pr_number != ''
+        run: |
+          echo "Manual drift check for PR #${{ github.event.inputs.pr_number }}"
+          ./scripts/metrics-collector.sh drift-check ${{ github.event.inputs.pr_number }}
+
+  performance-analysis:
+    name: Performance Metrics Analysis
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq bc
+      
+      - name: Extract workflow metrics
+        run: |
+          echo "Analyzing completed workflow performance..."
+          
+          workflow_id="${{ github.event.workflow_run.id }}"
+          conclusion="${{ github.event.workflow_run.conclusion }}"
+          
+          echo "Workflow ID: $workflow_id"
+          echo "Conclusion: $conclusion"
+          
+          if [ -f "metrics/operations.json" ]; then
+            echo "Current metrics file exists, analyzing trends..."
+            
+            total_ops=$(jq '.operations | length' metrics/operations.json)
+            echo "Total operations recorded: $total_ops"
+            
+            if [ $total_ops -gt 10 ]; then
+              echo "Sufficient data for trend analysis"
+              ./scripts/metrics-collector.sh report
+            fi
+          fi
+
+  metrics-reporting:
+    name: Generate Metrics Report
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && (github.event.inputs.operation == 'generate-report' || github.event.inputs.operation == 'full-analysis')
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq bc
+      
+      - name: Generate comprehensive report
+        run: |
+          echo "Generating comprehensive metrics report..."
+          
+          if [ ! -f "metrics/operations.json" ]; then
+            echo "No metrics data available, creating empty metrics file"
+            mkdir -p metrics
+            echo '{"operations": [], "drift_checks": []}' > metrics/operations.json
+          fi
+          
+          report_file=$(./scripts/metrics-collector.sh report)
+          echo "Generated report: $report_file"
+          
+          if [ -f "$report_file" ]; then
+            echo "Report content preview:"
+            head -30 "$report_file"
+          fi
+      
+      - name: Upload metrics report
+        uses: actions/upload-artifact@v4
+        with:
+          name: iac-metrics-report
+          path: metrics/report_*.md
+          retention-days: 30
+
+  drift-alerting:
+    name: Drift Alert System
+    runs-on: ubuntu-latest
+    needs: [drift-monitoring]
+    if: always() && (needs.drift-monitoring.result == 'success' || needs.drift-monitoring.result == 'failure')
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq bc
+      
+      - name: Analyze drift results
+        run: |
+          echo "Analyzing drift results for alerting..."
+          
+          if [ -f "metrics/operations.json" ]; then
+            # Check for recent high drift
+            high_drift=$(jq '[.drift_checks[] | select(.drift_percent > 5 and .status == "drift_detected")] | length' metrics/operations.json)
+            
+            if [ $high_drift -gt 0 ]; then
+              echo "WARNING: High drift detected in $high_drift checks"
+              echo "Drift levels requiring attention:"
+              jq -r '.drift_checks[] | select(.drift_percent > 5) | "PR #\(.pr_number): \(.drift_percent)% drift at \(.timestamp)"' metrics/operations.json
+            else
+              echo "All drift checks within acceptable limits"
+            fi
+            
+            # Check for failed operations
+            failed_ops=$(jq '[.operations[] | select(.status == "failed")] | length' metrics/operations.json)
+            
+            if [ $failed_ops -gt 0 ]; then
+              echo "WARNING: $failed_ops failed operations detected"
+              jq -r '.operations[] | select(.status == "failed") | "Failed \(.operation) for PR #\(.pr_number) at \(.timestamp)"' metrics/operations.json
+            fi
+          else
+            echo "No metrics data available for analysis"
+          fi
+
+  quality-gates:
+    name: IaC Quality Gates
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.operation == 'full-analysis'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq bc
+      
+      - name: Evaluate quality metrics
+        run: |
+          echo "Evaluating IaC quality gates..."
+          
+          if [ ! -f "metrics/operations.json" ]; then
+            echo "No metrics available - creating baseline"
+            exit 0
+          fi
+          
+          # Calculate success rates
+          total_deploys=$(jq '[.operations[] | select(.operation == "deploy")] | length' metrics/operations.json)
+          successful_deploys=$(jq '[.operations[] | select(.operation == "deploy" and .status == "success")] | length' metrics/operations.json)
+          
+          if [ $total_deploys -gt 0 ]; then
+            success_rate=$(echo "scale=2; ($successful_deploys * 100) / $total_deploys" | bc)
+            echo "Deploy success rate: $success_rate%"
+            
+            if (( $(echo "$success_rate < 95" | bc -l) )); then
+              echo "WARNING: Deploy success rate below 95% threshold"
+              exit 1
+            fi
+          fi
+          
+          # Check drift compliance
+          total_drift_checks=$(jq '.drift_checks | length' metrics/operations.json)
+          zero_drift_checks=$(jq '[.drift_checks[] | select(.drift_percent == 0)] | length' metrics/operations.json)
+          
+          if [ $total_drift_checks -gt 0 ]; then
+            drift_compliance=$(echo "scale=2; ($zero_drift_checks * 100) / $total_drift_checks" | bc)
+            echo "Drift compliance (0% drift): $drift_compliance%"
+            
+            if (( $(echo "$drift_compliance < 90" | bc -l) )); then
+              echo "WARNING: Drift compliance below 90% threshold"
+              exit 1
+            fi
+          fi
+          
+          echo "All quality gates passed"
