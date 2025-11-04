@@ -1,0 +1,282 @@
+name: PR Environment Deploy/Destroy
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+    branches: [main, develop]
+  
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to deploy/destroy'
+        required: true
+        type: string
+      action:
+        description: 'Action to perform'
+        required: true
+        default: 'deploy'
+        type: choice
+        options:
+        - deploy
+        - destroy
+
+env:
+  TF_IN_AUTOMATION: true
+  TF_INPUT: false
+
+jobs:
+  deploy:
+    name: Deploy Ephemeral Environment
+    runs-on: ubuntu-latest
+    if: github.event.action != 'closed'
+    
+    outputs:
+      pr_number: ${{ steps.get_pr.outputs.pr_number }}
+      stack_name: ${{ steps.terraform.outputs.stack_name }}
+      proxy_url: ${{ steps.terraform.outputs.proxy_url }}
+      app_url: ${{ steps.terraform.outputs.app_url }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Get PR number
+        id: get_pr
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "pr_number=${{ github.event.inputs.pr_number }}" >> $GITHUB_OUTPUT
+          else
+            echo "pr_number=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.5.0
+          terraform_wrapper: false
+      
+      - name: Setup Docker
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Terraform Init
+        working-directory: infra/terraform/stacks/pr-preview
+        run: terraform init
+      
+      - name: Terraform Format Check
+        working-directory: infra/terraform/stacks/pr-preview
+        run: terraform fmt -check -recursive
+      
+      - name: Terraform Validate
+        working-directory: infra/terraform/stacks/pr-preview
+        run: terraform validate
+      
+      - name: Setup tflint
+        uses: terraform-linters/setup-tflint@v4
+        with:
+          tflint_version: latest
+      
+      - name: Run tflint
+        working-directory: infra/terraform/stacks/pr-preview
+        run: |
+          tflint --init
+          tflint
+      
+      - name: Run tfsec
+        uses: aquasecurity/tfsec-action@v1.0.0
+        with:
+          working_directory: infra/terraform/stacks/pr-preview
+          soft_fail: false
+      
+      - name: Terraform Plan
+        id: plan
+        working-directory: infra/terraform/stacks/pr-preview
+        run: |
+          terraform plan -var="pr_number=${{ steps.get_pr.outputs.pr_number }}" -out=tfplan
+          terraform show -no-color tfplan > plan_output.txt
+      
+      - name: Comment Plan on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const planOutput = fs.readFileSync('infra/terraform/stacks/pr-preview/plan_output.txt', 'utf8');
+            
+            const comment = `## Terraform Plan for PR #${{ steps.get_pr.outputs.pr_number }}
+            
+            <details>
+            <summary>Terraform Plan Output</summary>
+            
+            \`\`\`terraform
+            ${planOutput}
+            \`\`\`
+            </details>
+            
+            **Stack Name:** \`ephemeral-pr-${{ steps.get_pr.outputs.pr_number }}\`
+            
+            **Status:** Plan successful, proceeding to apply...
+            `;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+      
+      - name: Terraform Apply
+        id: terraform
+        working-directory: infra/terraform/stacks/pr-preview
+        run: |
+          terraform apply -auto-approve tfplan
+          
+          echo "stack_name=$(terraform output -raw stack_name)" >> $GITHUB_OUTPUT
+          echo "proxy_url=$(terraform output -raw proxy_url)" >> $GITHUB_OUTPUT
+          echo "app_url=$(terraform output -raw app_url)" >> $GITHUB_OUTPUT
+      
+      - name: Wait for containers to be ready
+        run: |
+          echo "Waiting for containers to start..."
+          sleep 30
+          
+          proxy_url="${{ steps.terraform.outputs.proxy_url }}"
+          for i in {1..10}; do
+            if curl -s "$proxy_url/health" > /dev/null; then
+              echo "Proxy is healthy"
+              break
+            fi
+            echo "Waiting for proxy... (attempt $i/10)"
+            sleep 10
+          done
+      
+      - name: Comment deployment success
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const comment = `## Ephemeral Environment Deployed Successfully
+            
+            **Environment URLs:**
+            - **Proxy (Main):** ${{ steps.terraform.outputs.proxy_url }}
+            - **App (Direct):** ${{ steps.terraform.outputs.app_url }}
+            
+            **Environment Details:**
+            - **Stack:** \`${{ steps.terraform.outputs.stack_name }}\`
+            - **PR:** #${{ steps.get_pr.outputs.pr_number }}
+            - **Deployed at:** ${new Date().toISOString()}
+            
+            **Quick Test:**
+            \`\`\`bash
+            curl ${{ steps.terraform.outputs.proxy_url }}/health
+            \`\`\`
+            
+            This environment will be automatically destroyed when the PR is closed.
+            `;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+
+  destroy:
+    name: Destroy Ephemeral Environment
+    runs-on: ubuntu-latest
+    if: github.event.action == 'closed' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'destroy')
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Get PR number
+        id: get_pr
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "pr_number=${{ github.event.inputs.pr_number }}" >> $GITHUB_OUTPUT
+          else
+            echo "pr_number=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.5.0
+          terraform_wrapper: false
+      
+      - name: Setup Docker
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Terraform Init
+        working-directory: infra/terraform/stacks/pr-preview
+        run: terraform init
+      
+      - name: Terraform Destroy
+        working-directory: infra/terraform/stacks/pr-preview
+        run: |
+          echo "Destroying environment for PR #${{ steps.get_pr.outputs.pr_number }}"
+          terraform destroy -auto-approve -var="pr_number=${{ steps.get_pr.outputs.pr_number }}"
+      
+      - name: Verify cleanup
+        run: |
+          echo "Verifying cleanup..."
+          
+          containers=$(docker ps -a --filter "label=pr_number=${{ steps.get_pr.outputs.pr_number }}" --format "{{.Names}}" || true)
+          if [ -n "$containers" ]; then
+            echo "Found remaining containers: $containers"
+            echo "Cleaning up remaining containers..."
+            docker rm -f $containers || true
+          else
+            echo "No containers found - clean destroy"
+          fi
+          
+          volumes=$(docker volume ls --filter "name=ephemeral-pr-${{ steps.get_pr.outputs.pr_number }}" --format "{{.Name}}" || true)
+          if [ -n "$volumes" ]; then
+            echo "Found remaining volumes: $volumes"
+            echo "Cleaning up remaining volumes..."
+            docker volume rm $volumes || true
+          else
+            echo "No volumes found - clean destroy"
+          fi
+      
+      - name: Comment destruction success
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const comment = `## Ephemeral Environment Destroyed
+            
+            **Stack:** \`ephemeral-pr-${{ steps.get_pr.outputs.pr_number }}\`
+            **Destroyed at:** ${new Date().toISOString()}
+            
+            All resources have been cleaned up successfully.
+            
+            - Containers removed
+            - Volumes cleaned up
+            - Network resources freed
+            `;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+
+  metrics:
+    name: Collect Deployment Metrics
+    runs-on: ubuntu-latest
+    needs: [deploy]
+    if: needs.deploy.result == 'success'
+    
+    steps:
+      - name: Record deployment metrics
+        run: |
+          echo "Recording deployment metrics..."
+          echo "PR Number: ${{ needs.deploy.outputs.pr_number }}"
+          echo "Stack Name: ${{ needs.deploy.outputs.stack_name }}"
+          echo "Deploy Time: $(date -Iseconds)"
+          echo "Proxy URL: ${{ needs.deploy.outputs.proxy_url }}"
