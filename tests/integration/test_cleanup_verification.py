@@ -5,7 +5,7 @@ Tests de verificación de cleanup para recursos huérfanos.
 
 import pytest
 import subprocess
-from unittest.mock import Mock, patch, create_autospec
+from unittest.mock import Mock, patch
 from typing import List, Dict
 
 
@@ -233,7 +233,7 @@ class TestCleanupIntegration:
             assert volumes == []
 
             is_empty = CleanupVerifier.verify_terraform_state_empty(terraform_dir)
-            assert is_empty is True
+            assert is_empty
 
             cleanup_result = CleanupVerifier.cleanup_orphaned_resources(pr_number)
             assert sum(cleanup_result.values()) == 0

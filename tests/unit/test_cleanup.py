@@ -6,10 +6,8 @@ Verifica que después de destroy no queden contenedores, volúmenes o redes.
 
 import pytest
 import subprocess
-import json
-import time
-from unittest.mock import Mock, patch, create_autospec
-from typing import List, Dict, Any
+from unittest.mock import Mock, patch
+from typing import List, Dict
 
 
 class DockerManager:
@@ -380,7 +378,7 @@ class TestCleanupIntegration:
             is_empty = TerraformCleanupValidator.verify_state_empty(terraform_dir)
             resource_count = TerraformCleanupValidator.get_resource_count(terraform_dir)
 
-            assert is_empty is True
+            assert is_empty
             assert resource_count == 0
 
             # Verificar que cleanup es exitoso (0 recursos huérfanos)

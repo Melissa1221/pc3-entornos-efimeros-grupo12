@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import patch, call
+from unittest.mock import patch
 
 
 def test_terraform_apply_idempotent(terraform_provisioner):
