@@ -23,7 +23,7 @@ class TestStackLifecycle:
         terraform_provisioner.get_resources.return_value = [
             "ephemeral-pr-456-app",
             "ephemeral-pr-456-proxy",
-            "ephemeral-pr-456-db"
+            "ephemeral-pr-456-db",
         ]
 
         # Destroy
@@ -60,7 +60,7 @@ class TestStackLifecycle:
         expected_names = [
             f"ephemeral-pr-{pr_number}-app",
             f"ephemeral-pr-{pr_number}-proxy",
-            f"ephemeral-pr-{pr_number}-db"
+            f"ephemeral-pr-{pr_number}-db",
         ]
 
         terraform_provisioner.get_resources.return_value = expected_names
@@ -80,8 +80,16 @@ class TestStackLifecycle:
 
         # Mock retorno de recursos
         terraform_provisioner.get_resources.side_effect = [
-            [f"ephemeral-pr-{pr1}-app", f"ephemeral-pr-{pr1}-proxy", f"ephemeral-pr-{pr1}-db"],
-            [f"ephemeral-pr-{pr2}-app", f"ephemeral-pr-{pr2}-proxy", f"ephemeral-pr-{pr2}-db"]
+            [
+                f"ephemeral-pr-{pr1}-app",
+                f"ephemeral-pr-{pr1}-proxy",
+                f"ephemeral-pr-{pr1}-db",
+            ],
+            [
+                f"ephemeral-pr-{pr2}-app",
+                f"ephemeral-pr-{pr2}-proxy",
+                f"ephemeral-pr-{pr2}-db",
+            ],
         ]
 
         # Verificar que cada stack tiene sus propios recursos

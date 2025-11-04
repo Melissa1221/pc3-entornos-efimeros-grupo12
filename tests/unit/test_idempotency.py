@@ -28,12 +28,9 @@ def test_terraform_with_config_override():
     """Test usando patch.dict para sobrescribir configuración"""
     from src.provisioner import TerraformProvisioner
 
-    config = {
-        "TERRAFORM_DIR": "custom/path",
-        "AUTO_APPROVE": "true"
-    }
+    config = {"TERRAFORM_DIR": "custom/path", "AUTO_APPROVE": "true"}
 
-    with patch.dict('os.environ', config):
+    with patch.dict("os.environ", config):
         provisioner = TerraformProvisioner()
         result = provisioner.apply(123)
         assert result is not None
