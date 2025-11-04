@@ -56,7 +56,8 @@ jobs:
 
       - name: Run tests with coverage
         run: |
-          PYTHONPATH=. pytest --cov --cov-fail-under=90 --cov-report=xml --cov-report=term
+          PYTHONPATH=. pytest --cov --cov-report=xml --cov-report=term --cov-report=json:coverage.json
+          python -c "import json; data=json.load(open('coverage.json')); exit(0 if data['totals']['percent_covered'] >= 90 else 1)"
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3

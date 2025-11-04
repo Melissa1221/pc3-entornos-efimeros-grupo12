@@ -211,7 +211,7 @@ class TestCleanupIdempotency:
             result1 = CleanupVerifier.verify_terraform_state_empty("/fake/dir")
             result2 = CleanupVerifier.verify_terraform_state_empty("/fake/dir")
 
-            assert result1 == result2 == True
+            assert result1 and result2
 
 
 class TestCleanupIntegration:
