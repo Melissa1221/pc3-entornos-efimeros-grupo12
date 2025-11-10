@@ -1,0 +1,163 @@
+name: Cleanup Old Stacks
+
+on:
+  schedule:
+    - cron: '0 2 * * *'
+  
+  workflow_dispatch:
+    inputs:
+      max_age_hours:
+        description: 'Maximum age in hours for stacks to keep'
+        required: false
+        default: '72'
+        type: string
+
+env:
+  TF_IN_AUTOMATION: true
+  TF_INPUT: false
+
+jobs:
+  cleanup:
+    name: Cleanup Old Ephemeral Stacks
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Docker
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Find old stacks
+        id: find_old
+        run: |
+          echo "Finding old ephemeral stacks..."
+          
+          max_age_hours="${{ github.event.inputs.max_age_hours || '72' }}"
+          cutoff_time=$(date -d "${max_age_hours} hours ago" +%s)
+          
+          echo "Max age: ${max_age_hours} hours"
+          echo "Cutoff time: $(date -d @${cutoff_time})"
+          
+          old_containers=""
+          
+          for container in $(docker ps -a --filter "label=environment=ephemeral" --format "{{.Names}}" 2>/dev/null || true); do
+            if [[ $container =~ ephemeral-pr-[0-9]+-* ]]; then
+              created_time=$(docker inspect $container --format '{{.Created}}' 2>/dev/null || echo "")
+              
+              if [ -n "$created_time" ]; then
+                created_timestamp=$(date -d "$created_time" +%s)
+                
+                if [ $created_timestamp -lt $cutoff_time ]; then
+                  echo "Old container found: $container (created: $created_time)"
+                  old_containers="$old_containers $container"
+                fi
+              fi
+            fi
+          done
+          
+          echo "old_containers=${old_containers}" >> $GITHUB_OUTPUT
+          
+          if [ -n "$old_containers" ]; then
+            echo "Found $(echo $old_containers | wc -w) old containers to cleanup"
+          else
+            echo "No old containers found"
+          fi
+      
+      - name: Extract PR numbers from old containers
+        id: extract_prs
+        run: |
+          old_containers="${{ steps.find_old.outputs.old_containers }}"
+          pr_numbers=""
+          
+          for container in $old_containers; do
+            if [[ $container =~ ephemeral-pr-([0-9]+)- ]]; then
+              pr_num="${BASH_REMATCH[1]}"
+              if [[ ! " $pr_numbers " =~ " $pr_num " ]]; then
+                pr_numbers="$pr_numbers $pr_num"
+              fi
+            fi
+          done
+          
+          echo "pr_numbers=${pr_numbers}" >> $GITHUB_OUTPUT
+          echo "PR numbers to cleanup: $pr_numbers"
+      
+      - name: Check PR status
+        id: check_prs
+        run: |
+          pr_numbers="${{ steps.extract_prs.outputs.pr_numbers }}"
+          prs_to_cleanup=""
+          
+          for pr_num in $pr_numbers; do
+            pr_state=$(gh pr view $pr_num --json state --jq '.state' 2>/dev/null || echo "NOT_FOUND")
+            
+            if [ "$pr_state" = "CLOSED" ] || [ "$pr_state" = "MERGED" ] || [ "$pr_state" = "NOT_FOUND" ]; then
+              echo "PR #$pr_num is $pr_state - safe to cleanup"
+              prs_to_cleanup="$prs_to_cleanup $pr_num"
+            else
+              echo "PR #$pr_num is still $pr_state - skipping cleanup"
+            fi
+          done
+          
+          echo "prs_to_cleanup=${prs_to_cleanup}" >> $GITHUB_OUTPUT
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Setup Terraform
+        if: steps.check_prs.outputs.prs_to_cleanup != ''
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.5.0
+          terraform_wrapper: false
+      
+      - name: Cleanup old stacks
+        if: steps.check_prs.outputs.prs_to_cleanup != ''
+        run: |
+          prs_to_cleanup="${{ steps.check_prs.outputs.prs_to_cleanup }}"
+          
+          echo "Starting cleanup of old stacks..."
+          
+          for pr_num in $prs_to_cleanup; do
+            echo "Cleaning up stack for PR #$pr_num"
+            
+            cd infra/terraform/stacks/pr-preview
+            
+            terraform init
+            
+            if terraform destroy -auto-approve -var="pr_number=$pr_num"; then
+              echo "Terraform destroy successful for PR #$pr_num"
+            else
+              echo "Terraform destroy failed for PR #$pr_num, trying manual cleanup"
+              
+              echo "Manual cleanup for PR #$pr_num"
+              
+              containers=$(docker ps -a --filter "label=pr_number=$pr_num" --format "{{.Names}}" || true)
+              if [ -n "$containers" ]; then
+                echo "Removing containers: $containers"
+                docker rm -f $containers || true
+              fi
+              
+              volumes=$(docker volume ls --filter "name=ephemeral-pr-$pr_num" --format "{{.Name}}" || true)
+              if [ -n "$volumes" ]; then
+                echo "Removing volumes: $volumes"
+                docker volume rm $volumes || true
+              fi
+            fi
+            
+            cd ../../../../
+          done
+      
+      - name: Report cleanup results
+        run: |
+          prs_cleaned="${{ steps.check_prs.outputs.prs_to_cleanup }}"
+          
+          if [ -n "$prs_cleaned" ]; then
+            echo "Cleanup completed!"
+            echo "Cleaned PRs: $prs_cleaned"
+            echo "$(echo $prs_cleaned | wc -w) stacks cleaned up"
+          else
+            echo "No cleanup needed - all stacks are current"
+          fi
+          
+          remaining=$(docker ps -a --filter "label=environment=ephemeral" --format "{{.Names}}" | wc -l)
+          echo "Remaining ephemeral containers: $remaining"
