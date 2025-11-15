@@ -7,45 +7,11 @@ on:
     types: [opened, ready_for_review, closed]
 
 jobs:
-  automate-project:
+  add-to-project:
     runs-on: ubuntu-latest
     steps:
-      - name: Move PR to In Progress when opened
-        if: github.event_name == 'pull_request' && github.event.action == 'opened'
-        uses: leonsteinhaeuser/project-beta-automations@v2.2.1
+      - name: Add issue or PR to project
+        uses: actions/add-to-project@v0.5.0
         with:
-          gh_token: ${{ secrets.GH_PAT }}
-          user: Melissa1221
-          project_id: 4
-          resource_node_id: ${{ github.event.pull_request.node_id }}
-          status_value: "In Progress"
-
-      - name: Move PR to Review-QA when ready for review
-        if: github.event_name == 'pull_request' && github.event.action == 'ready_for_review'
-        uses: leonsteinhaeuser/project-beta-automations@v2.2.1
-        with:
-          gh_token: ${{ secrets.GH_PAT }}
-          user: Melissa1221
-          project_id: 4
-          resource_node_id: ${{ github.event.pull_request.node_id }}
-          status_value: "Review-QA"
-
-      - name: Move PR to Done when closed
-        if: github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true
-        uses: leonsteinhaeuser/project-beta-automations@v2.2.1
-        with:
-          gh_token: ${{ secrets.GH_PAT }}
-          user: Melissa1221
-          project_id: 4
-          resource_node_id: ${{ github.event.pull_request.node_id }}
-          status_value: "Done"
-
-      - name: Move issue to Product Backlog when opened
-        if: github.event_name == 'issues' && github.event.action == 'opened'
-        uses: leonsteinhaeuser/project-beta-automations@v2.2.1
-        with:
-          gh_token: ${{ secrets.GH_PAT }}
-          user: Melissa1221
-          project_id: 4
-          resource_node_id: ${{ github.event.issue.node_id }}
-          status_value: "Product Backlog"
+          project-url: https://github.com/users/Melissa1221/projects/4
+          github-token: ${{ secrets.GITHUB_TOKEN }}
