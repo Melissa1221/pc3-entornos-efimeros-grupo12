@@ -12,5 +12,6 @@ pyflakes==3.4.0
 Pygments==2.19.2
 pytest==9.0.1
 pytest-cov==7.0.0
+pytest-mock==3.15.1
 requests==2.32.5
 urllib3==2.5.0
