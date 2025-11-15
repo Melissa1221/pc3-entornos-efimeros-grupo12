@@ -13,3 +13,8 @@ variable "app_port" {
   default     = 8000
   description = "Puerto base para la aplicación"
 }
+
+variable "network_name" {
+  type        = string
+  description = "Nombre de la red Docker para conectar contenedores"
+}

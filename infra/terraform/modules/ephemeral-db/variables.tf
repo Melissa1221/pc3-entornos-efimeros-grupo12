@@ -12,3 +12,8 @@ variable "db_port" {
   type        = number
   default     = 5432
 }
+
+variable "network_name" {
+  type        = string
+  description = "Nombre de la red Docker para conectar contenedores"
+}

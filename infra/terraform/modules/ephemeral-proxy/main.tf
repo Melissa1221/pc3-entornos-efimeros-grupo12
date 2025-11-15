@@ -10,16 +10,16 @@ terraform {
 locals {
   proxy_name = "ephemeral-pr-${var.pr_number}-proxy"
   proxy_port = var.proxy_port + (var.pr_number % 100)
-  
+
   nginx_config = <<-EOT
     upstream app {
-        server host.docker.internal:${var.app_port + (var.pr_number % 100)};
+        server ${var.app_container_name}:80;
     }
-    
+
     server {
         listen 80;
         server_name _;
-        
+
         location / {
             proxy_pass http://app;
             proxy_set_header Host $host;
@@ -27,7 +27,7 @@ locals {
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto $scheme;
         }
-        
+
         location /health {
             return 200 "healthy\n";
             add_header Content-Type text/plain;
@@ -47,6 +47,10 @@ resource "docker_container" "proxy" {
   ports {
     internal = 80
     external = local.proxy_port
+  }
+
+  networks_advanced {
+    name = var.network_name
   }
 
   env = [

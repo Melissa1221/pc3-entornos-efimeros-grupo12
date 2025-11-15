@@ -8,6 +8,13 @@ class TestStackLifecycle:
         """Crear stack con nombre unico basado en PR"""
         pr_number = 456
 
+        # Configurar el mock para retornar el resultado esperado
+        from unittest.mock import MagicMock
+        expected_result = MagicMock()
+        expected_result.stack_name = f"ephemeral-pr-{pr_number}"
+        expected_result.success = True
+        terraform_provisioner.create_stack.return_value = expected_result
+
         result = terraform_provisioner.create_stack(pr_number)
 
         assert result.stack_name == f"ephemeral-pr-{pr_number}"

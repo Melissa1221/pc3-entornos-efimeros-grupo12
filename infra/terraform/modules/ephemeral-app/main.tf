@@ -25,6 +25,10 @@ resource "docker_container" "app" {
     external = local.app_port
   }
 
+  networks_advanced {
+    name = var.network_name
+  }
+
   env = [
     "PR_NUMBER=${var.pr_number}"
   ]
