@@ -11,12 +11,12 @@ tools: ## Verificar herramientas instaladas
 	@echo "Verificando herramientas..."
 	@command -v terraform >/dev/null 2>&1 || { echo "terraform no instalado"; exit 1; }
 	@command -v docker >/dev/null 2>&1 || { echo "docker requerido"; exit 1; }
-	@command -v pytest >/dev/null 2>&1 || { echo "pytest no instalado"; exit 1; }
+	@python3 -m pytest --version >/dev/null 2>&1 || { echo "pytest no instalado"; exit 1; }
 	@command -v jq >/dev/null 2>&1 || { echo "jq requerido"; exit 1; }
-	@echo "Todas las herramientas disponibles"
+	@echo "✓ Todas las herramientas disponibles"
 
 test: ## Ejecutar pytest con cobertura ≥90%
-	PYTHONPATH=. pytest -vv --cov --cov-report=term --cov-report=html --cov-report=json:coverage.json --cov-fail-under=90 || ([ -f coverage.json ] && jq -e '.totals.percent_covered >= 90' coverage.json > /dev/null)
+	PYTHONPATH=. python3 -m pytest -vv --cov=src --cov=tests --cov-report=term --cov-report=html --cov-report=json:coverage.json --cov-fail-under=90
 
 lint: ## Ejecutar linters Python y Terraform
 	@echo "Ejecutando linters..."
@@ -25,6 +25,8 @@ lint: ## Ejecutar linters Python y Terraform
 	terraform -chdir=$(TERRAFORM_DIR) fmt -check -recursive
 
 plan: tools ## Terraform plan con validación completa
+	@echo "0. Inicializando Terraform..."
+	@if [ ! -d "$(TERRAFORM_DIR)/.terraform" ]; then terraform -chdir=$(TERRAFORM_DIR) init; fi
 	@echo "1. Formateando..."
 	terraform -chdir=$(TERRAFORM_DIR) fmt -check
 	@echo "2. Validando..."
