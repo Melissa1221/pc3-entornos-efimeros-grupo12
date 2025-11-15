@@ -7,19 +7,11 @@ on:
     types: [opened, ready_for_review, closed]
 
 jobs:
-  move-cards:
+  add-to-project:
     runs-on: ubuntu-latest
     steps:
-      - name: Move issue to In Progress
-        if: github.event_name == 'issues' && github.event.action == 'opened'
+      - name: Add issue or PR to project
         uses: actions/add-to-project@v0.5.0
         with:
-          project-url: https://github.com/users/Melissa1221/projects/1
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Move PR to In Progress when opened
-        if: github.event_name == 'pull_request' && github.event.action == 'opened'
-        uses: actions/add-to-project@v0.5.0
-        with:
-          project-url: https://github.com/users/Melissa1221/projects/1
+          project-url: https://github.com/users/Melissa1221/projects/4
           github-token: ${{ secrets.GITHUB_TOKEN }}
