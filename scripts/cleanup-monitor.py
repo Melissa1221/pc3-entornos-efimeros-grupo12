@@ -6,9 +6,8 @@ Proporciona análisis y alertas sobre recursos huérfanos.
 
 import json
 import subprocess
-import sys
 import argparse
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Dict, List, Optional
 
 
@@ -221,25 +220,24 @@ class CleanupMonitor:
         """Genera reporte de análisis de limpieza."""
         analysis = self.analyze_cleanup_needs(max_age_hours)
 
-        report = f"""# Reporte de Análisis de Limpieza
-
-**Fecha de análisis:** {analysis['analysis_time']}
-**Edad máxima permitida:** {max_age_hours} horas
-
-## Resumen de Recursos
-
-- **Contenedores efímeros:** {analysis['total_resources']['containers']}
-- **Volúmenes efímeros:** {analysis['total_resources']['volumes']}
-- **Redes efímeras:** {analysis['total_resources']['networks']}
-
-## Candidatos para Limpieza
-
-- **Contenedores antiguos:** {len(analysis['cleanup_candidates']['containers'])}
-- **Volúmenes antiguos:** {len(analysis['cleanup_candidates']['volumes'])}
-- **Redes antigas:** {len(analysis['cleanup_candidates']['networks'])}
-- **PRs afectados:** {len(analysis['cleanup_candidates']['pr_numbers'])}
-
-"""
+        report = "# Reporte de Análisis de Limpieza\n\n"
+        report += f"**Fecha de análisis**: {analysis['analysis_time']}\n"
+        report += f"**Edad máxima permitida**: {max_age_hours} horas\n\n"
+        report += "## Resumen de Recursos\n\n"
+        report += f"- **Contenedores efímeros**: {analysis['total_resources']['containers']}\n"
+        report += (
+            f"- **Volúmenes efímeros**: {analysis['total_resources']['volumes']}\n"
+        )
+        report += f"- **Redes efímeras**: {analysis['total_resources']['networks']}\n\n"
+        report += "## Candidatos para Limpieza\n\n"
+        num_containers = len(analysis["cleanup_candidates"]["containers"])
+        report += f"- **Contenedores antiguos**: {num_containers}\n"
+        num_volumes = len(analysis["cleanup_candidates"]["volumes"])
+        report += f"- **Volúmenes antiguos**: {num_volumes}\n"
+        num_networks = len(analysis["cleanup_candidates"]["networks"])
+        report += f"- **Redes antigas**: {num_networks}\n"
+        num_prs = len(analysis["cleanup_candidates"]["pr_numbers"])
+        report += f"- **PRs afectados**: {num_prs}\n\n"
 
         if analysis["cleanup_candidates"]["pr_numbers"]:
             report += "### PRs con Recursos Antiguos\n\n"
@@ -253,7 +251,9 @@ class CleanupMonitor:
             report += "|--------|---------|----------|----|\n"
             for container in analysis["cleanup_candidates"]["containers"]:
                 age = (
-                    f"{container['age_hours']:.1f}" if container["age_hours"] else "N/A"
+                    f"{container['age_hours']: .1f}"
+                    if container["age_hours"]
+                    else "N/A"
                 )
                 pr = f"#{container['pr_number']}" if container["pr_number"] else "N/A"
                 report += (
@@ -262,7 +262,7 @@ class CleanupMonitor:
             report += "\n"
 
         if not analysis["cleanup_candidates"]["pr_numbers"]:
-            report += "✅ **No se encontraron recursos que requieran limpieza.**\n"
+            report += "  **No se encontraron recursos que requieran limpieza.**\n"
 
         return report
 
@@ -334,9 +334,9 @@ def main():
         if args.json:
             print(json.dumps(summary, indent=2))
         else:
-            print(
-                f"Contenedores: {summary['total_containers']} (ejecutándose: {summary['running_containers']})"
-            )
+            total = summary["total_containers"]
+            running = summary["running_containers"]
+            print(f"Contenedores: {total} (ejecutándose: {running})")
             print(f"Volúmenes: {summary['total_volumes']}")
             print(f"Redes: {summary['total_networks']}")
             print(f"PRs únicos: {summary['unique_prs']}")
@@ -351,7 +351,8 @@ def main():
             print(json.dumps(analysis, indent=2, default=str))
         else:
             candidates = analysis["cleanup_candidates"]
-            print(f"Recursos que requieren limpieza (>{args.max_age}h):")
+            max_age = args.max_age
+            print(f"Recursos que requieren limpieza (>{max_age}h)")
             print(f"  Contenedores: {len(candidates['containers'])}")
             print(f"  Volúmenes: {len(candidates['volumes'])}")
             print(f"  Redes: {len(candidates['networks'])}")
