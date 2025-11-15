@@ -1,0 +1,25 @@
+exclude:
+  # Excluir checks que no aplican para entorno de desarrollo
+  - docker-cis-4.1  # No usar usuario privilegiado (desarrollo local)
+  - general-secrets-sensitive-in-variable  # Permitir variables sensibles documentadas
+
+severity_overrides:
+  # Ajustar severidad para entorno de desarrollo
+  docker-cis-4.2: LOW    # Contenedores con capabilities (dev)
+  
+minimum_severity: MEDIUM
+
+# Configuración específica para módulos
+terraform:
+  required_providers:
+    - docker: "~> 3.0"
+  
+# Paths a incluir en el escaneo
+include_paths:
+  - "modules/"
+  - "stacks/"
+
+# Generar reportes
+output:
+  format: "json"
+  file: "tfsec-report.json"

@@ -1,0 +1,96 @@
+
+repos:
+  # Hooks básicos de pre-commit
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.4.0
+    hooks:
+      - id: trailing-whitespace
+        name: Eliminar espacios en blanco al final de líneas
+        description: Remueve espacios en blanco trailing
+
+      - id: end-of-file-fixer
+        name: Asegurar nueva línea al final de archivos
+        description: Asegura que archivos terminan con newline
+
+      - id: check-yaml
+        name: Validar sintaxis YAML
+        description: Valida archivos YAML (workflows, configs)
+
+      - id: check-added-large-files
+        name: Detectar archivos grandes
+        description: Previene commit de archivos >500KB
+        args: ['--maxkb=500']
+
+      - id: check-merge-conflict
+        name: Detectar marcadores de merge conflict
+        description: Busca strings de conflicto de merge
+
+      - id: check-json
+        name: Validar sintaxis JSON
+        description: Valida archivos JSON
+
+      - id: mixed-line-ending
+        name: Normalizar line endings
+        description: Asegura line endings consistentes
+
+  # Black: Formateo automático de código Python
+  - repo: https://github.com/psf/black
+    rev: 23.3.0
+    hooks:
+      - id: black
+        name: Formatear código Python con Black
+        description: Formatea código Python automáticamente
+
+  # Flake8: Linting de Python
+  - repo: https://github.com/PyCQA/flake8
+    rev: 6.0.0
+    hooks:
+      - id: flake8
+        name: Lint Python con Flake8
+        description: Verifica estilo y errores en Python
+        args: ['--max-line-length=100', '--extend-ignore=E203,W503']
+
+  # Gitleaks: Detección de secretos
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.16.1
+    hooks:
+      - id: gitleaks
+        name: Detectar secretos con Gitleaks
+        description: Previene commit de credenciales/tokens
+
+  # Terraform format check
+  - repo: https://github.com/antonbabenko/pre-commit-terraform
+    rev: v1.83.5
+    hooks:
+      - id: terraform_fmt
+        name: Formatear archivos Terraform
+        description: Valida formato de archivos .tf
+
+      - id: terraform_validate
+        name: Validar configuración Terraform
+        description: Ejecuta terraform validate
+
+      - id: terraform_tflint
+        name: Lint Terraform con tflint
+        description: Análisis estático de Terraform
+        args:
+          - --args=--config=__GIT_WORKING_DIR__/infra/terraform/.tflint.hcl
+
+# Excluir archivos/directorios
+exclude: |
+  (?x)^(
+      \.terraform/|
+      .*\.tfstate|
+      .*\.tfstate\.backup|
+      __pycache__/|
+      \.pytest_cache/|
+      htmlcov/|
+      \.coverage|
+      node_modules/|
+      evidence/.*\.png|
+      evidence/.*\.jpg
+  )$
+
+# Configuración de ejecución
+fail_fast: false  # Ejecuta todos los hooks aunque uno falle
+minimum_pre_commit_version: '2.20.0'
