@@ -28,10 +28,11 @@ def stack_urls() -> Dict[str, str]:
 def verify_stack_deployed(stack_urls):
     """Verifica que el stack esté desplegado o salta los tests."""
     try:
-        response = requests.get(stack_urls["proxy"], timeout=2, allow_redirects=False)
+        requests.get(stack_urls["proxy"], timeout=2, allow_redirects=False)
         return True
     except requests.exceptions.RequestException:
-        pytest.skip(f"Stack no desplegado. Ejecuta 'terraform apply' para PR #{stack_urls['pr_number']}")
+        pr_num = stack_urls['pr_number']
+        pytest.skip(f"Stack no desplegado. Ejecuta 'terraform apply' para PR #{pr_num}")
 
 
 class TestSmokeE2E:
@@ -69,7 +70,8 @@ class TestSmokeE2E:
         response = requests.get(full_url, timeout=5)
 
         assert response.status_code == 200, (
-            f"Health endpoint {endpoint} no respondió con 200. Status: {response.status_code}, URL: {full_url}"
+            f"Health endpoint {endpoint} no respondió con 200. "
+            f"Status: {response.status_code}, URL: {full_url}"
         )
 
         content_type = response.headers.get("Content-Type", "")
@@ -78,7 +80,8 @@ class TestSmokeE2E:
             try:
                 health_data = response.json()
                 assert isinstance(health_data, dict), "Health data debe ser un objeto JSON"
-                print(f"Health {endpoint} OK - JSON válido, status: {health_data.get('status', 'unknown')}")
+                status = health_data.get('status', 'unknown')
+                print(f"Health {endpoint} OK - JSON válido, status: {status}")
             except ValueError:
                 pytest.fail(f"Endpoint {endpoint} declaró JSON pero no es parseable")
         else:
