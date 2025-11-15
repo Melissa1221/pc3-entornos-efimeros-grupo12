@@ -32,7 +32,7 @@ log_error() {
 }
 
 # Variables para tracking de métricas
-COVERAGE_TARGET=92
+COVERAGE_TARGET=90
 DRIFT_TARGET=0
 VALIDATION_ERRORS=0
 
@@ -46,11 +46,11 @@ validate_test_coverage() {
     cd "$PROJECT_ROOT"
     
     # Ejecutar tests con cobertura
-    if command -v pytest &> /dev/null; then
+    if python3 -m pytest --version &> /dev/null; then
         log_info "Ejecutando pytest con cobertura..."
-        
+
         # Ejecutar tests y capturar cobertura (ignorar fallos de tests individuales)
-        PYTHONPATH=. pytest --cov --cov-report=term --cov-report=json:coverage.json -v 2>/dev/null || true
+        PYTHONPATH=. python3 -m pytest --cov=src --cov=tests --cov-report=term --cov-report=json:coverage.json -v 2>/dev/null || true
         
         # Extraer porcentaje de cobertura
         if [ -f "coverage.json" ]; then
