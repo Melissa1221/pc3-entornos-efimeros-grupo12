@@ -18,3 +18,13 @@ variable "app_port" {
   type        = number
   default     = 8000
 }
+
+variable "network_name" {
+  type        = string
+  description = "Nombre de la red Docker para conectar contenedores"
+}
+
+variable "app_container_name" {
+  type        = string
+  description = "Nombre del contenedor de la aplicación para proxy reverso"
+}

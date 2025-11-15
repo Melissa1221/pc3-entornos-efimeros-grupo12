@@ -38,6 +38,10 @@ resource "docker_container" "db" {
     external = local.db_port
   }
 
+  networks_advanced {
+    name = var.network_name
+  }
+
   env = [
     "POSTGRES_DB=${local.db_database}",
     "POSTGRES_USER=ephemeral_user",
