@@ -12,32 +12,14 @@ jobs:
     steps:
       - name: Move issue to In Progress
         if: github.event_name == 'issues' && github.event.action == 'opened'
-        uses: alex-page/github-project-automation-plus@v0.8.3
+        uses: actions/add-to-project@v0.5.0
         with:
-          project: PC3 Proyecto 6
-          column: In Progress
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          project-url: https://github.com/users/Melissa1221/projects/1
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Move PR to In Progress when opened
         if: github.event_name == 'pull_request' && github.event.action == 'opened'
-        uses: alex-page/github-project-automation-plus@v0.8.3
+        uses: actions/add-to-project@v0.5.0
         with:
-          project: PC3 Proyecto 6
-          column: In Progress
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Move PR to Review-QA
-        if: github.event_name == 'pull_request' && github.event.action == 'ready_for_review'
-        uses: alex-page/github-project-automation-plus@v0.8.3
-        with:
-          project: PC3 Proyecto 6
-          column: Review-QA
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Move to Done on merge
-        if: github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true
-        uses: alex-page/github-project-automation-plus@v0.8.3
-        with:
-          project: PC3 Proyecto 6
-          column: Done
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          project-url: https://github.com/users/Melissa1221/projects/1
+          github-token: ${{ secrets.GITHUB_TOKEN }}
